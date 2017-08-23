@@ -1,0 +1,326 @@
+
+---
+title: Time Series Analysis on e-Commerece Data to Predict the Price of a Product
+  in FUTURE
+output:
+  html_document:
+    toc: yes
+  html_notebook:
+    fig_caption: yes
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float: yes
+---
+### Problem Description
+ 
+ Build time series models using e-commerce data and the goal is to predict the price of a
+certain product for future time period like 4 weeks ahead using time series algorithms and evaluating each of the
+algorithms.
+
+
+###Clear the Global Environment
+```{r}
+rm(list=ls(all=TRUE))
+```
+
+
+### Library Call
+```{r}
+library(forecast)
+library(lubridate)
+library(plyr)
+library(TTR)
+library(zoo)
+
+```
+
+
+### Read Data from RData
+* Image type files helps in reducing the time taken for the data to be read
+* To read RData type file use readRDS function
+```{r}
+
+
+```
+
+
+### Observe the data
+* Find how many unique products
+* What are all the columns given in the data
+```{r}
+
+##Summary
+
+
+## Dimensions
+
+
+## Unique
+
+```
+
+
+### Focusing on a particular product of choice
+* Since different products  price vary  in a different way along the year
+  we choose a particular product
+```{r}
+
+
+```
+
+
+### Basic info about that product
+```{r}
+
+
+
+
+```
+
+
+### Observation & Analysis 
+* Look at the basic info of the data like names, str etc.,
+* We observe that there is different price for the product at different times in a day.
+* We need to have  one data point per unit price so therefore we need to aggregate them by day
+* R has read the data column either as character or as factor we need convert it to date format
+```{r}
+
+
+
+```
+
+
+### Missing values in time series
+* Some times there will be missing entries in dates which will create a missing day in the data or if it is quarter,month or annual .
+* Observe the data to find if any
+```{r}
+
+
+```
+
+
+### Detection of the missing values
+* Create a date field which consists of continuous sequence of dates 
+* Check against this with the current price data and find out the missing dates.
+* Join this variable to the current data to see the missing dates
+
+```{r}
+
+
+
+
+
+```
+
+
+### Impuation of Missing Values
+* Replace the missing values with it’s either proceeding value or succeeding or
+  both.
+* To do that we can use na.locf of "zoo" package which will give succeding values
+* we can use rev( ) to reverse the sequence and take the average of both
+```{r}
+
+
+
+```
+
+
+### Observation on MIN_PRICE
+* The price is not changing daily very much 
+* We need to see weekly aggregation instead of daily
+* Adding week column in addition can help in this 
+* use any of the following aggregations such as Min , Max or Average for the price
+```{r}
+
+
+
+
+```
+
+
+### Splitting of the Data
+* Random split is not possible because here we will be in need of sequence where by we miss the data points
+* splitting is done by sequential splitting
+```{r}
+
+
+
+```
+
+
+### converting into time series 
+* our target variable is price and each week has a price aggregated
+```{r}
+
+
+
+```
+
+
+### Vizualize the time series Data
+```{r}
+
+
+
+```
+
+
+### Decomposed Time Series
+* Decompose will provide us with the info on seasonality,trend and randomness
+```{r}
+
+
+```
+
+
+### ACF,PACF 
+* Autocorrelation is the linear dependence of a variable with itself at two points in time
+* For stationary processes, autocorrelation between any two observations only depends on the time lag h between them
+*  Partial autocorrelation is the autocorrelation between yt and yt–h after removing any linear dependence on y1,      y2, ..., yt–h+1
+```{r}
+
+
+```
+* Looking at the Y scale in ACF we observe that trend is more dominant than seasonality
+* Data is not stationay and we need to stationarize the data
+
+
+### Stationarize by differencing
+```{r}
+
+
+
+```
+* one lag has stationarize the data we can use ndiffs of forecast package to check no of differences required to      stationarize the data
+```{r}
+
+```
+
+
+### Modelling  the time series using simple moving averages
+* Time series Price has trend 
+* Modelling the time series behaviour by simple moving averages
+```{r}
+
+
+
+```
+
+
+### Define the metric MAPE 
+```{r}
+
+
+
+```
+
+
+### Weighted Moving Averages
+```{r}
+
+
+
+```
+
+
+### Exponential Moving Averages
+```{r}
+
+
+
+```
+
+
+## Build a HoltWinters model  with trend 
+```{r}
+
+
+
+```
+
+
+## HoltWinters model  with trend  and Seasonality
+```{r}
+
+
+
+```
+*Since you are building the models on weekly data, you will get 52 seasonal components. If you   are reading the monthly data, you will get 12 seasonal components
+
+
+### Prediction on the Train
+```{r}
+
+
+
+```
+
+
+### Prediction on test data
+```{r}
+
+
+
+```
+
+
+### Arima Models
+```{r}
+
+
+
+```
+
+
+## Considering the difference from the graph as d=1 to stationarize
+```{r}
+#Any seasonal differencing required?
+
+
+#Non-seasonal differencing
+
+
+
+
+
+# So manual arima model is (0,1,0)
+```
+
+
+## Plots of the models
+```{r}
+
+
+
+```
+
+###  Auto Arima
+```{r}
+
+
+
+```
+
+### Box Ljung Test
+```{r}
+# Box test on our auto.arima model
+
+
+
+```
+* This statistic can be used to examine residuals from a time series   are not correlated in order to see if all underlying population    autocorrelations for the errors may be 0.
+*Null hypothesis: error is not correlated
+*Alt hypothesis: error is correlated
+
+
+### Forecast on the models 
+```{r}
+
+
+
+
+```
+* Model 1 was constructed with no trend and no seasonality and therefore the prediction will be same as present.
+
+*Model2 has both trend and seasonality.

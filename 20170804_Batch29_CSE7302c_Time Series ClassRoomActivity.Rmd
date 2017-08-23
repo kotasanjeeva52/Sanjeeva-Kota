@@ -1,0 +1,330 @@
+---
+title: Time Series Analysis on e-Commerece Data to Predict the Price of a Product
+  in FUTURE
+output:
+  html_notebook: 
+  theme: united
+  toc: yes
+  toc_float: yes
+---
+### Problem Description
+ 
+ Build time series models in using e-commerce data and the goal is to predict the price of a
+certain product for future time period like 4 weeks ahead using time series algorithms and evaluating each of the
+algorithms.
+
+
+###Clear the Global Environment
+```{r}
+rm(list=ls(all=TRUE))
+```
+### Library Call
+```{r}
+library(forecast)
+library(lubridate)
+library(DataCombine)
+library(imputeTS)
+library(dplyr)
+library(TTR)
+library(graphics)
+library(data.table)
+library(plyr)
+library(zoo)
+```
+### Read Data from RData
+* Image type files helps in reducing the time taken for the data to be read
+* To read RData type file use readRDS function
+```{r}
+data=readRDS("/media/mahidhar/8d98faeb-c985-4e4d-befb-401d67172e35/academics/Time Series/ecommerceData.RData")
+```
+### Observe the data
+* Find how many unique products
+* What are all the columns given in the data
+```{r}
+names(data)
+##Summary
+summary(data$Condition)
+## Dimensions
+dim(data)
+## Unique
+length(unique(data$TitleKey))
+```
+## Basic data View
+```{r}
+head(data,30)
+```
+## Summary of the entire data set
+```{r}
+summary(data)
+str(data)
+```
+
+### Focusing on a particular product of choice
+* Since different products  price vary  in a different way along the year
+  we choose a particular product
+```{r}
+data2=data[which(data$TitleKey==4302628 & data$Condition=="Good"),]
+data3 <- data %>% filter(data$TitleKey == 4302628)
+data4 <-data3 %>% filter(data3$Condition == "Good")
+
+```
+
+### Basic info about that product
+
+```{r}
+dim(data2)
+head(data2)
+names(data2)
+str(data2)
+tail(data2)
+```
+### Observation & Analysis 
+* Look at the basic info of the data like names,str etc.,
+* We observe that there is different price for the product at different times in   a day.
+* We need to have  one data point per unit price so therefore we need to aggregate them by day
+* R has read the data column either as character or as factor we need convert it to date format
+```{r}
+# RtData2.Day <- sqldf("select Date,min(Price) as MIN_PRICE
+# from data2 group by Date")
+RtData2.Day<-ddply(data2,.(Date),summarize,MEAN_PRICE=mean(Price))
+RtData2.Day$Date=as.Date(RtData2.Day$Date,format="%Y-%m-%d")
+```
+### Missing values in time series
+* Some times there will be missing entries in dates which will create a missing day in the data or if it is quarter,month or annual .
+* Observe the data to find if any
+```{r}
+head(RtData2.Day)
+str(RtData2.Day)
+```
+### Detection of the missing values
+* Create a date field which consists of continuous sequence of dates 
+* Check against this with the current price data and find out the missing dates.
+* Join this variable to the current data to see the missing dates
+
+```{r}
+minDate=min(as.Date(RtData2.Day$Date,format="%Y-%m-%d"))
+maxDate =max(as.Date(RtData2.Day$Date,format="%Y-%m-%d"))
+```
+### Creating a data frame for sequence of Days
+```{r }
+seq <- data.frame("dateRange"=seq(minDate,maxDate,by="days"))
+```
+#### Merge the data frames of seq of dates with the dates of sale 
+```{r }
+RtData2.Day2=merge(seq,RtData2.Day,by.x="dateRange",by.y="Date",all.x=T)
+RtData2Day2 <- RtData2.Day2
+head(RtData2Day2)
+```
+
+### Impuation of Missing Values
+* Replace the missing values with it’s either proceeding value or succeeding or averaging
+  both.
+* To do that we can use na.locf of "zoo" package which will give succeding values
+* we can use rev( ) to reverse the sequence and take the average of both
+```{r}
+RtData2.Day2$MEAN_PRICE<-na.locf(RtData2Day2$MEAN_PRICE)
+head(RtData2.Day2)
+```
+
+### Observation on MEAN_PRICE
+* The price is not changing daily very much 
+* We need to see weekly aggregation instead of daily
+* Adding week column in addition can help in this 
+```{r}
+RtData2.Day2$WEEK <-as.numeric(format(RtData2.Day2$dateRange,format="%Y.%W"))
+RtData2Day2 <- RtData2.Day2
+RtData2.Week<-ddply(RtData2.Day2, .(WEEK),summarize,MEAN_PRICE=mean(MEAN_PRICE))
+head(RtData2.Week)
+# RtData2.Week <- sqldf("select WEEK as WEEK,min(MIN_PRICE) as MIN_PRICE from RtData2Day2 group by WEEK")
+
+```
+
+### Splitting of the Data
+* Random split is not possible because here we will be in need of sequence where by we miss the data points
+* splitting is done by sequential splitting
+```{r}
+Train=RtData2.Week[which(RtData2.Week$WEEK<=2013.47),]
+Test=RtData2.Week[which(RtData2.Week$WEEK>2013.47),]
+```
+
+### converting into time series 
+* our target variable is price and each week has a price aggregated
+```{r}
+Price <- ts(Train$MEAN_PRICE,frequency =52)
+```
+
+### Vizualize the time series Data
+```{r}
+plot(Price,
+     type="l",
+     lwd=3,
+     col="red",
+     xlab="yearly",
+     ylab="Price",
+     main="Time series plot for Book-xyzabc")
+```
+### Decomposed Time Series
+* Decompose will provide us with the info on seasonality,trend and randomness
+```{r}
+Pricedecomposed=decompose(Price)
+plot(Pricedecomposed,col="Red")
+```
+### ACF,PACF 
+* Autocorrelation is the linear dependence of a variable with itself at two points in time
+* For stationary processes, autocorrelation between any two observations only depends on the time lag h between them
+*  Partial autocorrelation is the autocorrelation between yt and yt–h after removing any linear dependence on y1,y2, ..., yt–h+1
+```{r}
+par(mfrow=c(2,2))
+acf(Price,lag=30)
+pacf(Price,lag=30)
+```
+
+
+```{r }
+Price1 <- ts(Train$MEAN_PRICE, frequency =1)
+plot(Price1,xlab = "Weekly",ylab="Price")
+acf(Price1,lag=30)
+pacf(Price1,lag=30)
+```
+* Looking at the Y scale in ACF we observe that trend is more dominant than seasonality
+* Data is not stationay and we need to stationarize the data
+
+### Stationarize by differencing
+
+```{r}
+par(mfrow=c(2,3))
+plot(diff(Price1,lag = 1),type="l"); acf(diff(Price1,lag = 1),lag=30) ;pacf(diff(Price1,lag = 1),lag=30)
+plot(diff(Price1,lag=2),type="l");  acf(diff(Price1,lag = 2),lag=30); pacf(diff(Price1,lag = 2),lag=30)
+```
+* one lag has stationarize the data we can use ndiffs of forecast package to check no of differences required to      stationarize the data
+```{r}
+ndiffs(Price)
+```
+
+
+### Modelling  the time series using simple moving averages
+* Time series Price has trend 
+* Modelling the time series behaviour by simple moving averages
+```{r}
+fitsma <- SMA(Price,n=2)
+pred<-forecast(fitsma,h=4)
+plot(pred)
+lines(fitsma,col="red")
+```
+### Define the metric MAPE 
+```{r}
+smaMape <- mean(abs((Price[2:length(Price)]-fitsma[2:length(Price)])/Price[2:length(Price)]))
+smaMape
+```
+
+### Weighted Moving Averages
+```{r}
+fitwma<- WMA(Price,n=2,1:2)
+wmaMape <- mean(abs((Price[2:length(Price)]-fitwma[2:length(Price)])/Price[2:length(Price)]))
+wmaMape
+pred<-forecast(fitwma,h=4)
+plot(pred)
+lines(fitwma,col="yellow")
+```
+
+### Exponential Moving Averages
+```{r}
+fitEma <- EMA(Price, n = 2)
+emaMape <- mean(abs((Price[2:length(Price)]-fitEma[2:length(Price)])/Price[2:length(Price)]))
+emaMape
+pred<-forecast(fitEma,h=4)
+plot(pred)
+lines(fitEma,col="purple")
+```
+
+## Build a HoltWinters model  with trend 
+```{r}
+holtpriceforecast <- HoltWinters(Train$MEAN_PRICE,gamma=FALSE)
+head(holtpriceforecast$fitted)
+```
+## HoltWinters model  with trend  and Seasonality
+
+```{r}
+priceholtforecast <-
+HoltWinters(Price, beta=TRUE, gamma=TRUE, seasonal="additive")
+head(priceholtforecast$fitted)
+```
+*Since you are building the models on weekly data, you will get 52 seasonal components. If you   are reading the monthly data, you will get 12 seasonal components
+
+### Prediction on the Train
+```{r}
+holtforecastTrain <- data.frame(priceholtforecast$fitted)
+holtforecastTrainpredictions <- holtforecastTrain$xhat
+head(holtforecastTrainpredictions)
+```
+
+### Prediction on test data
+```{r}
+priceforecast<-forecast(priceholtforecast,h = 8)
+plot(priceforecast,ylim = c(-200,200))
+
+```
+
+
+### Arima Models
+```{r}
+
+model1 <- arima(Price,c(0,0,0))
+model1
+acf(Price) 
+pacf(Price)
+plot(Price)
+```
+## Considering the difference from the graph as d=1 to stationarize
+```{r}
+model2 <- arima(Price,c(0,1,0))
+model2
+acf(diff(Price,lag = 1))
+pacf(diff(Price,lag = 1))
+plot(diff(Price))
+```
+* plot has still non stationary behaviour another difference can stationarize it 
+```{r}
+model3 <- arima(Price,c(0,2,0))
+model3
+plot(diff(Price,differences = 2))
+acf(diff(Price,differences = 2))
+pacf(diff(Price,differences = 2))
+```
+* Observing the acf and pacf there is significant lag in acf and also in pacf that has to be taken care 
+```{r}
+model4 <- arima(Price,c(1,1,1))
+model4
+
+
+```
+## Plots of the models
+
+```{r}
+par(mfrow=c(2,2))
+plot(model1$residuals,ylim=c(-50,50))
+plot(model2$residuals,ylim=c(-50,50))
+plot(model3$residuals,ylim=c(-50,50))
+plot(model4$residuals,ylim=c(-50,50))
+```
+###  Auto Arima
+```{r}
+MODEL_ARIMA <- auto.arima(Price, ic='aic')
+summary(MODEL_ARIMA)
+```
+
+### Forecast on the models 
+```{r}
+pricearimaforecasts1 <- forecast(model1, h=4)
+plot(pricearimaforecasts1)
+pricearimaforecast3 <- forecast(model3, h=4)
+plot(pricearimaforecast3)
+pricearimaforecasts_autArima<- forecast(MODEL_ARIMA,h=4)
+plot(pricearimaforecasts_autArima,flwd = 2)
+summary(MODEL_ARIMA)
+
+```
+* Model 1 was constructed with no trend and no seasonality and therefore the prediction will be same as present.
+
+*Model3 has both trend and seasonality.
+*Comparing the AIC Auto Arima was giving good results for the product item considered
